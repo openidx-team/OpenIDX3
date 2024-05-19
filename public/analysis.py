@@ -244,8 +244,6 @@ def returns_graph():
 
     return portfolio_profitloss_line_chartData
 
-import matplotlib.pyplot as plt
-
 def decomposition_graph(stock, period):
     data = get_stock_data(stock)
     returns = np.log(data[['Close']].dropna())
@@ -264,7 +262,7 @@ def decomposition_graph(stock, period):
     mean_resid = resid.mean()
 
     fig = make_subplots(rows=4, cols=1, shared_xaxes=True, subplot_titles=("Stock Price", "Trend", "Seasonal", "Residual"))
-    fig.update_layout(title_text=f"{stock[:-3]} Decomposition Analysis {period} Days Period", showlegend=False)
+    fig.update_layout(title_text=f"{stock[:-3].upper()} Stock Decomposition Analysis, {period} Days Period", showlegend=False)
 
     fig.add_trace(go.Scatter(x=prices.index, y=prices['Close'], mode='lines', name='Stock Price'), row=1, col=1)
     fig.add_trace(go.Scatter(x=trend.index, y=trend.round(2), mode='lines', name='Trend'), row=2, col=1)
@@ -296,8 +294,10 @@ def garch_graph(stock):
                 model = arch_model(returns, vol='Garch', p=p, q=q)
                 model_fit = model.fit(disp='off')
                 aic_values.append((p, q, model_fit.aic))
-            except:
-                pass
+            except Exception as e:
+                # print(f"Failed to fit model for p={p}, q={q}: {e}")
+                continue
+
     p, q, _ = min(aic_values, key=lambda x:x[2])
 
     model = arch_model(returns, vol='Garch', p=p, q=q)
@@ -305,7 +305,7 @@ def garch_graph(stock):
     results_mean = results.conditional_volatility.mean()
 
     fig = make_subplots(rows=2, cols=1, shared_xaxes=True, subplot_titles=("Stock Price", "Conditional Volatility"))
-    fig.update_layout(title_text=f"{stock[:-3]} GARCH Volatility Analysis with p={p} and q={q}", showlegend=False)
+    fig.update_layout(title_text=f"{stock[:-3].upper()} Stock Volatility Analysis, p={p} and q={q}", showlegend=False)
 
     fig.add_trace(go.Scatter(x=prices.index, y=prices['Close'], mode='lines', name='Stock Price'), row=1, col=1)
     fig.add_trace(go.Scatter(x=prices.index, y=results.conditional_volatility, mode='lines', name='Conditional Volatility'), row=2, col=1)
@@ -418,25 +418,23 @@ def distribution_graph(stock):
     mode = remove_outliers(mode)
 
     fig = make_subplots(rows=5, cols=1, shared_xaxes=True, subplot_titles=("Price", f"Kurtosis {mean_kurtosis:.2f}", f"Skewness {mean_skewness:.2f}", f"Variance {mean_variance:.2f}", "Mean, Median, and Mode"))
-    fig.update_layout(title_text=f"{stock[:-3].upper()} Distribution Analysis, Rolling {time_period} Days", showlegend=False)
+    fig.update_layout(title_text=f"{stock[:-3].upper()} Stock Distribution Analysis, Rolling {time_period} Days", showlegend=False)
 
-    color = 'blue'
+    fig.add_trace(go.Scatter(x=stock_close_copy.index, y=stock_close_copy, mode='lines', name='Price'), row=1, col=1)
 
-    fig.add_trace(go.Scatter(x=stock_close_copy.index, y=stock_close_copy, mode='lines', name='Price', line=dict(color=color)), row=1, col=1)
-
-    fig.add_trace(go.Scatter(x=kurtosis.index, y=kurtosis, mode='lines', name='Kurtosis', line=dict(color=color)), row=2, col=1)
+    fig.add_trace(go.Scatter(x=kurtosis.index, y=kurtosis, mode='lines', name='Kurtosis'), row=2, col=1)
     fig.add_trace(go.Scatter(x=kurtosis.index, y=[mean_kurtosis]*len(kurtosis), mode='lines', name='Mean Kurtosis', line=dict(color='red')), row=2, col=1)
     fig.add_trace(go.Scatter(x=kurtosis.index, y=[0]*len(kurtosis), mode='lines', name='Zero', line=dict(color='black')), row=2, col=1)
 
-    fig.add_trace(go.Scatter(x=skewness.index, y=skewness, mode='lines', name='Skewness', line=dict(color=color)), row=3, col=1)
+    fig.add_trace(go.Scatter(x=skewness.index, y=skewness, mode='lines', name='Skewness'), row=3, col=1)
     fig.add_trace(go.Scatter(x=skewness.index, y=[mean_skewness]*len(skewness), mode='lines', name='Mean Skewness', line=dict(color='red')), row=3, col=1)
     fig.add_trace(go.Scatter(x=skewness.index, y=[0]*len(skewness), mode='lines', name='Zero', line=dict(color='black')), row=3, col=1)
 
-    fig.add_trace(go.Scatter(x=variance.index, y=variance, mode='lines', name='Variance', line=dict(color=color)), row=4, col=1)
+    fig.add_trace(go.Scatter(x=variance.index, y=variance, mode='lines', name='Variance'), row=4, col=1)
     fig.add_trace(go.Scatter(x=variance.index, y=[mean_variance]*len(variance), mode='lines', name='Mean Variance', line=dict(color='red')), row=4, col=1)
     fig.add_trace(go.Scatter(x=variance.index, y=[0]*len(variance), mode='lines', name='Zero', line=dict(color='black')), row=4, col=1)
 
-    fig.add_trace(go.Scatter(x=mean.index, y=mean, mode='lines', name='Mean', line=dict(color=color)), row=5, col=1)
+    fig.add_trace(go.Scatter(x=mean.index, y=mean, mode='lines', name='Mean'), row=5, col=1)
     fig.add_trace(go.Scatter(x=median.index, y=median, mode='lines', name='Median', line=dict(color='red')), row=5, col=1)
     fig.add_trace(go.Scatter(x=mode.index, y=mode, mode='lines', name='Mode', line=dict(color='green')), row=5, col=1)
 
@@ -562,7 +560,7 @@ def performance_graph(stock, riskFreeRate):
     mean_information = information_ratio.mean()
 
     fig = make_subplots(rows=4, cols=1, subplot_titles=('Sharpe Ratio', 'Sortino Ratio', 'Treynor Ratio', 'Information Ratio'))
-    fig.update_layout(title_text=f'Risk-Adjusted Return Ratios for {stock} Rolling {time_period} Days, Risk-Free Rate: {riskFreeRate * 365:.2%}')
+    fig.update_layout(title_text=f'{stock[:-3].upper()} Stock Risk-Adjusted Performance Analysis, 30 Days Period', showlegend=False)
 
     fig.add_trace(go.Scatter(x=sharpe_ratio.index, y=sharpe_ratio, mode='lines', name='Sharpe Ratio'), row=1, col=1)
     fig.add_trace(go.Scatter(x=sharpe_ratio.index, y=[mean_sharpe]*len(sharpe_ratio), mode='lines', name='Mean Sharpe Ratio', line=dict(color='red')), row=1, col=1)

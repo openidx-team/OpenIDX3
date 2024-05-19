@@ -13,10 +13,13 @@ const app = {
             this.isVisible = !this.isVisible;
         },
         submitBackend() {
+            this.stock = this.stock.toUpperCase().replace('.JK', '');
+
             if (this.stock.trim() === '') {
                 this.alertError('error', 'Please enter a stock ticker');
                 return;
             }
+
             this.alertError('success', 'Request sent to the server');
             fetch('/analysis/distribution', {
                 method: 'POST',

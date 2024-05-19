@@ -15,6 +15,13 @@ const app = {
             this.isVisible = !this.isVisible
         },
         addStock() {
+            this.newStock = this.newStock.toUpperCase().replace('.JK', '');
+
+            if (this.stocks.includes(this.newStock)) {
+                this.alertError('error', 'Stock already added');
+                return;
+            }
+
             if (this.newStock.trim() !== '') { 
                 this.newStock = this.newStock.toUpperCase();
                 this.stocks.push(this.newStock);
