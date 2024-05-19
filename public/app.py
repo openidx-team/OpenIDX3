@@ -1,56 +1,91 @@
-from analysis import *
-from extensions import app, db
+"""
+This module contains the main Flask application for the OpenIDX3 project.
+"""
 
-import os
-import random
-import threading
 import json
 from datetime import datetime
 
+from analysis import (
+    Stock,
+    get_stock_data,
+    get_stock_fundamental,
+    get_stock_chart,
+    returns_graph,
+    decomposition_graph,
+    garch_graph,
+    optimization_graph,
+    distribution_graph,
+    ownership_graph,
+    performance_graph
+)
+from extensions import app, db
+
 from flask import render_template, send_from_directory, url_for, request, redirect, flash, jsonify
 
-version = 'Alpha 15.05.24'
+import yfinance as yf
+
+VERSION = 'Alpha 19.05.24'
 
 @app.route('/')
-def hello_world():
-    return render_template('index.html', version=version)
+def index():
+    """
+    This function renders the index page of the website.
+    """
+    return render_template('index.html', version=VERSION)
 
 @app.route('/portfolio/')
 @app.route('/portfolio/<path:path>', methods=['GET', 'POST'])
 def portfolio(path='overview'):
+    """
+    This function renders the portfolio page of the website.
+    """
     if path == 'overview':
         stocks = Stock.query.all()
         portfolio_value = 0
         market_value = 0
+
         for stock in stocks:
             stock.buy_price = round(stock.buy_price, 2)
             portfolio_value += stock.buy_price * stock.shares
-            
+
             stock.current_price = get_stock_data(stock.ticker).iloc[-1]['Close']
             market_value += stock.current_price * stock.shares
 
-        portfolio_value_line_chartData, portfolio_composition_value_pie_chartData, portfolio_composition_shares_pie_chartData = get_stock_chart() 
-        
-        return render_template('portfolio-overview.html', portfolio_value_line_chartData=portfolio_value_line_chartData, portfolio_composition_value_pie_chartData=portfolio_composition_value_pie_chartData, portfolio_composition_shares_pie_chartData=portfolio_composition_shares_pie_chartData, portfolio_value=round(portfolio_value, 2), market_value=round(market_value, 2), version=version)
+        portfolio_value_line_chart_data, portfolio_composition_value_pie_chart_data, portfolio_composition_shares_pie_chart_data = get_stock_chart()
 
-    elif path == 'returns':
+        return render_template(
+            'portfolio-overview.html',
+            portfolio_value_line_chartData=portfolio_value_line_chart_data,
+            portfolio_composition_value_pie_chartData=portfolio_composition_value_pie_chart_data,
+            portfolio_composition_shares_pie_chartData=portfolio_composition_shares_pie_chart_data,
+            portfolio_value=round(portfolio_value, 2),
+            market_value=round(market_value, 2),
+            version=VERSION
+        )
+
+    if path == 'returns':
         stocks = Stock.query.all()
-        portfolio_profitloss_line_chartData = returns_graph()
+        portfolio_profitloss_line_chart_data = returns_graph()
 
-        if portfolio_profitloss_line_chartData != None:
+        if portfolio_profitloss_line_chart_data is not None:
             for stock in stocks:
                 stock.current_price = get_stock_data(stock.ticker).iloc[-1]['Close']
                 stock.ticker = stock.ticker[:-3]
                 stock.buy_price = round(stock.buy_price, 2)
-                stock.buy_date = stock.buy_date.strftime('%Y-%m-%d') 
+                stock.buy_date = stock.buy_date.strftime('%Y-%m-%d')
 
-        return render_template('portfolio-returns.html', portfolio_profitloss_line_chartData=portfolio_profitloss_line_chartData, stocks=stocks, version=version)
+        return render_template(
+            'portfolio-returns.html',
+            portfolio_profitloss_line_chartData=portfolio_profitloss_line_chart_data,
+            stocks=stocks,
+            version=VERSION
+        )
 
-    elif path == 'management':
+    if path == 'management':
         stocks = Stock.query.all()
         if request.method == "POST":
             request_type = request.form['type']
-            ticker = request.form['ticker']
+            ticker = request.form['ticker'].upper()
             shares = request.form['shares']
             buy_price = request.form['buy_price']
             buy_date = request.form['buy_date']
@@ -58,16 +93,20 @@ def portfolio(path='overview'):
             if '.JK' not in ticker:
                 ticker = ticker + '.JK'
             try:
-                info = yf.Ticker(ticker).info
-            except:
+                yf.Ticker(ticker).info
+            except ValueError:
                 flash(('Invalid ticker', 'danger'))
                 return redirect(url_for('portfolio', path='management'))
 
-            if not shares.replace('.', '').isdigit() or float(shares) < 0 or float(shares) > 1000000000:
+            if (not shares.replace('.', '').isdigit() or
+                    float(shares) < 0 or
+                    float(shares) > 1000000000):
                 flash(('Invalid shares', 'danger'))
                 return redirect(url_for('portfolio', path='management'))
 
-            if not buy_price.replace('.', '').isdigit() or float(buy_price) < 0 or float(buy_price) > 1000000:
+            if (not buy_price.replace('.', '').isdigit() or
+                    float(buy_price) < 0 or
+                    float(buy_price) > 1000000):
                 flash(('Invalid buy price', 'danger'))
                 return redirect(url_for('portfolio', path='management'))
 
@@ -83,165 +122,188 @@ def portfolio(path='overview'):
                 if stock.read_stock(ticker):
                     existing_stock = stock.read_stock(ticker)
                     new_shares = existing_stock.shares + float(shares)
-                    new_buy_price = ((existing_stock.shares * existing_stock.buy_price) + (float(shares) * float(buy_price))) / new_shares
-                    new_buy_date = buy_date
+                    new_buy_price = ((existing_stock.shares * existing_stock.buy_price) +
+                        (float(shares) * float(buy_price))) / new_shares
                     stock.update_stock(ticker, shares=new_shares, buy_price=new_buy_price)
                     flash((f'Stock {ticker} has been updated', 'success'))
                     return redirect(url_for('portfolio', path='management'))
-                elif not stock.read_stock(ticker):
+
+                if not stock.read_stock(ticker):
                     stock.create_stock(ticker, shares, buy_price, buy_date)
                     flash((f'{ticker[:-3]} has been added to your portfolio', 'success'))
                     return redirect(url_for('portfolio', path='management'))
-                else:
-                    flash(('An error occurred', 'danger'))
+
+                flash(('An error occurred', 'danger'))
+                return redirect(url_for('portfolio', path='management'))
+
+            if request_type == 'edit':
+                if not stock.read_stock(ticker):
+                    flash(('Stock not found', 'danger'))
                     return redirect(url_for('portfolio', path='management'))
 
-            elif request_type == 'edit':
+                stock.update_stock(ticker, shares, buy_price, buy_date)
+                flash((f'Stock {ticker[:-3]} has been updated', 'success'))
+                return redirect(url_for('portfolio', path='management'))
+
+            if request_type == 'delete':
                 if not stock.read_stock(ticker):
                     flash(('Stock not found', 'danger'))
                     return redirect(url_for('portfolio', path='management'))
-                else:
-                    stock.update_stock(ticker, shares, buy_price, buy_date)
-                    flash((f'Stock {ticker[:-3]} has been updated', 'success'))
-                    return redirect(url_for('portfolio', path='management'))
-            
-            elif request_type == 'delete':
-                if not stock.read_stock(ticker):
-                    flash(('Stock not found', 'danger'))
-                    return redirect(url_for('portfolio', path='management'))
-                else:
-                    stock.delete_stock(ticker)
-                    flash((f'Stock {ticker[:-3]} has been deleted', 'success'))
-                    return redirect(url_for('portfolio', path='management'))
+
+                stock.delete_stock(ticker)
+                flash((f'Stock {ticker[:-3]} has been deleted', 'success'))
+                return redirect(url_for('portfolio', path='management'))
 
         for stock in stocks:
             stock.ticker = stock.ticker[:-3]
             stock.buy_price = round(stock.buy_price, 2)
             stock.buy_date = stock.buy_date.strftime('%Y-%m-%d')
 
-        return render_template('portfolio-management.html', stocks=stocks, version=version)
-    else:
-        return "Invalid path"
+        return render_template('portfolio-management.html', stocks=stocks, version=VERSION)
+
+    return "Invalid path"
 
 @app.route('/analysis/')
 @app.route('/analysis/<path:path>', methods=['GET', 'POST'])
 def analysis(path='overview'):
+    """
+    This function renders the analysis page of the website.
+    """
     if path == 'overview':
-        return render_template('analysis-overview.html', version=version)
+        return render_template('analysis-overview.html', version=VERSION)
 
-    elif path == 'ownership':
+    if path == 'ownership':
         if request.method == 'POST':
             data = request.get_json()
             request_type = data['type']
-            ticker = data['ticker']
+            ticker = data['ticker'].upper()
 
             if request_type == "ownership":
-                stock_ownership_graphData = ownership_graph(ticker)
+                stock_ownership_graph_data = ownership_graph(ticker)
             else:
                 return jsonify({'error': 'Invalid request type'})
 
-            return stock_ownership_graphData
+            return stock_ownership_graph_data
 
-        return render_template('analysis-ownership.html', version=version)
+        return render_template('analysis-ownership.html', version=VERSION)
 
-    elif path == 'performance':
+    if path == 'performance':
         if request.method == 'POST':
             data = request.get_json()
             request_type = data['type']
-            ticker = data['ticker']
-            riskFreeRate = data['riskFreeRate']
+            ticker = data['ticker'].upper()
+            risk_free_rate = data['riskFreeRate']
 
+            if '.JK' not in ticker:
+                ticker = ticker + '.JK'
 
-        return render_template('analysis-performance.html', version=version)
+            try:
+                yf.Ticker(ticker).info
+            except ValueError:
+                return jsonify({'error': 'Invalid ticker'})
 
-    elif path == 'distribution':
+            if request_type == "performance":
+                stock_performance_graph_data = performance_graph(ticker, risk_free_rate)
+            else:
+                return jsonify({'error': 'Invalid request type'})
+
+            return stock_performance_graph_data
+
+        return render_template('analysis-performance.html', version=VERSION)
+
+    if path == 'distribution':
         if request.method == 'POST':
             data = request.get_json()
             request_type = data['type']
-            ticker = data['ticker']
-            
+            ticker = data['ticker'].upper()
+
             if '.JK' not in ticker:
                 ticker = ticker + '.JK'
             try:
-                info = yf.Ticker(ticker).info
-            except:
+                yf.Ticker(ticker).info
+            except ValueError:
                 return jsonify({'error': 'Invalid ticker'})
 
             if request_type == "distribution":
-                stockDistributionGraphData = distribution_graph(ticker)
+                stock_distribution_graph_data = distribution_graph(ticker)
             else:
                 return jsonify({'error': 'Invalid request type'})
 
-            return stockDistributionGraphData
+            return stock_distribution_graph_data
 
-        return render_template('analysis-distribution.html', version=version)
-    
-    elif path == 'optimization':
+        return render_template('analysis-distribution.html', version=VERSION)
+
+    if path == 'optimization':
         if request.method == "POST":
             data = request.get_json()
             request_type = data['type']
             ticker = data['ticker']
-            numPortfolios = data['numPortfolios']
-            riskFreeRate = data['riskFreeRate']
+            num_portfolios = data['numPortfolios']
+            risk_free_rate = data['riskFreeRate']
 
             cleaned_ticker = []
-            for stock in ticker:    
+            for stock in ticker:
                 if stock == "portfolio":
-                    cleaned_ticker = stock
+                    cleaned_ticker = "portfolio"
                     break
-                elif '.JK' not in stock:
+                if '.JK' not in stock:
+                    stock = stock.upper()
                     stock = stock + '.JK'
-                    try:
-                        info = yf.Ticker(stock).info
-                    except:
-                        jsonify({'error': 'Invalid ticker'})
 
                 cleaned_ticker.append(stock)
 
             if len(cleaned_ticker) == 0:
                 return jsonify({'error': 'Select at least 2 stocks'})
-            elif riskFreeRate == '' or numPortfolios not in range(1, 10001):
+            if risk_free_rate == '' or num_portfolios not in range(1, 10001):
                 return jsonify({'error': 'Number of portfolios must be between 1 and 10000'})
-            elif riskFreeRate == '' or float(riskFreeRate) < 0 or float(riskFreeRate) > 1:
+            if risk_free_rate == '' or float(risk_free_rate) < 0 or float(risk_free_rate) > 1:
                 return jsonify({'error': 'Risk-free rate must be between 0 and 1'})
 
             if request_type == 'optimization':
-                stock_optimization_graphData, maxSharpeWeights, minVolWeights = optimization_graph(cleaned_ticker, numPortfolios, riskFreeRate)
+                stock_optimization_graphData, maxSharpeWeights, minVolWeights = optimization_graph(cleaned_ticker, num_portfolios, risk_free_rate)
             else:
                 return jsonify({'error': 'Invalid request type'})
 
             if stock_optimization_graphData == "1":
                 return jsonify({'error': 'Please add more than one stock to be analyzed'})
-            elif stock_optimization_graphData == "2":
-                return jsonify({'error': 'At least one of the assets must have an expected return exceeding the risk-free rate'})
-            elif stock_optimization_graphData == "3":
+            if stock_optimization_graphData == "2":
+                return jsonify({
+                    'error': 'At least one of the assets must have an expected return exceeding the risk-free rate'
+                })
+            if stock_optimization_graphData == "3":
                 return jsonify({'error': 'An unknown error occurred'})
-            else:
-                maxSharpeWeights_json = json.dumps(maxSharpeWeights)
-                minVolWeights = json.dumps(minVolWeights)
-                stock_optimization_graphData = stock_optimization_graphData[:-1] + f', "maxSharpeWeights": {maxSharpeWeights_json} ' + f', "minVolWeights": {minVolWeights} ' + '}'
 
-                return stock_optimization_graphData
+            maxSharpeWeights_json = json.dumps(maxSharpeWeights)
+            minVolWeights = json.dumps(minVolWeights)
+            stock_optimization_graphData = (
+                stock_optimization_graphData[:-1] +
+                f', "maxSharpeWeights": {maxSharpeWeights_json} ' +
+                f', "minVolWeights": {minVolWeights} ' +
+                '}'
+            )
 
-        return render_template('analysis-optimization.html', stock_optimization_graphData=None, version=version)
+            return stock_optimization_graphData
 
-    elif path == 'fundamental':
+        return render_template(
+            'analysis-optimization.html', 
+            stock_optimization_graphData=None,
+            version=VERSION
+        )
+
+    if path == 'fundamental':
         if request.method == "POST":
             data = request.get_json()
             request_type = data['type']
             ticker = data['ticker']
-            cleaned_ticker = []
 
+            cleaned_ticker = []
             for stock in ticker:
                 if stock == "portfolio":
-                    cleaned_ticker = stock
+                    cleaned_ticker = "portfolio"
                     break
-                elif '.JK' not in stock:
+                if '.JK' not in stock:
+                    stock = stock.upper()
                     stock = stock + '.JK'
-                    try:
-                        info = yf.Ticker(stock).info
-                    except:
-                        jsonify({'error': 'Invalid ticker'})
 
                 cleaned_ticker.append(stock)
 
@@ -258,66 +320,68 @@ def analysis(path='overview'):
 
             return jsonify(stock_fundamental_data)
 
-        return render_template('analysis-fundamental.html', version=version)
+        return render_template('analysis-fundamental.html', version=VERSION)
 
-    elif path == 'decomposition':
+    if path == 'decomposition':
         if request.method == "POST":
             data = request.get_json()
-            ticker = data['ticker']
-            period = data['period'] 
+            ticker = data['ticker'].upper()
+            period = data['period']
 
             period = int(period)
 
             if ticker == '':
                 return jsonify({'error': 'Please enter a ticker'})
-            elif '.JK' not in ticker:
+            if '.JK' not in ticker:
                 ticker = ticker + '.JK'
 
             try:
-                info = yf.Ticker(ticker).info
-            except:
+                yf.Ticker(ticker).info
+            except ValueError:
                 return jsonify({'error': 'Invalid ticker'})
 
-            stock_decomposition_graphData = decomposition_graph(ticker, period)
+            stock_decomposition_graph_data = decomposition_graph(ticker, period)
 
-            if stock_decomposition_graphData == "1":
+            if stock_decomposition_graph_data == "1":
                 return jsonify({'error': 'Please enter a valid ticker'})
-            elif stock_decomposition_graphData == "2":
+            if stock_decomposition_graph_data == "2":
                 return jsonify({'error': 'Please enter a valid period'})
 
-            return stock_decomposition_graphData
+            return stock_decomposition_graph_data
 
-        return render_template('analysis-decomposition.html', version=version)
-        
-    elif path == 'garch':
+        return render_template('analysis-decomposition.html', version=VERSION)
+
+    if path == 'garch':
         if request.method == "POST":
             data = request.get_json()
-            ticker = data['ticker']
+            ticker = data['ticker'].upper()
             request_type = data['type']
 
             if '.JK' not in ticker:
                 ticker = ticker + '.JK'
             try:
-                info = yf.Ticker(ticker).info
-            except:
+                yf.Ticker(ticker).info
+            except ValueError:
                 return jsonify({'error': 'Invalid ticker'})
 
             if request_type == 'garch':
-                stock_garch_graphData = garch_graph(ticker)
-                if stock_garch_graphData == "1":
+                stock_garch_graph_data = garch_graph(ticker)
+                if stock_garch_graph_data == "1":
                     return jsonify({'error': 'Please enter a valid ticker'})
             else:
                 return jsonify({'error': 'Invalid request type'})
 
-            return stock_garch_graphData
+            return stock_garch_graph_data
 
-        return render_template('analysis-garch.html', version=version)
+        return render_template('analysis-garch.html', version=VERSION)
 
-    else:
-        return "Invalid path"
-        
+    return "Invalid path"
+
 @app.route('/assets/<path:filename>')
 def send_assets(filename):
+    """
+    This function sends the assets to the client.
+    """
     return send_from_directory('assets', filename)
 
 if __name__ == '__main__':
