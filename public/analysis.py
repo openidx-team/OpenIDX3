@@ -149,6 +149,10 @@ def get_stock_fundamental(stocks):
 
 def get_stock_chart():
     stocks = Stock.query.all()
+
+    if stocks == []:
+        return None, None, None
+
     portfolio_value = pd.DataFrame()
     portfolio_capital = pd.DataFrame()
     portfolio_pnl = pd.DataFrame()
@@ -211,7 +215,11 @@ def get_stock_chart():
 
     return portfolio_value_line_chartData, portfolio_composition_value_pie_chartData, portfolio_composition_shares_pie_chartData
 
-def returns_graph(stocks):
+def returns_graph():
+    stocks = Stock.query.all()
+    if stocks == []:
+        return None
+        
     profit_loss = pd.DataFrame()
     for stock in stocks:
         buy_date = pd.to_datetime(stock.buy_date)
