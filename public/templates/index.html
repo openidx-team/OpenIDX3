@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>openIDX3</title>
+    <link rel="stylesheet" href="../static/styles.css">
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+</head>
+<body class="flex flex-col min-h-screen bg-black">
+    <div id="app" class="flex flex-col min-h-screen">
+        <div>
+            <nav class="bg-gray-600 py-2">
+                <div class="flex md:mx-0 items-center justify-between m-2">
+                    <div class="flex m-4 space-x-4 items-center justify-between">
+                        <a href="/" class="font-bold italic text-white text-xl">openIDX3</a>
+                        <div class="hidden md:flex space-x-4 items-center">
+                            <a href="/portfolio/overview" class="text-white">Portfolio</a>
+                            <a href="/analysis/overview" class="text-white">Analysis</a>
+                        </div>
+                    </div>
+                    <div class="md:hidden m-2">
+                        <button @click="toggleMenu" class="text-white focus:outline-none">
+                            <i class="bi-list" style="font-size: x-large;"></i>
+                        </button>
+                    </div>
+                </div>
+            
+                <div v-if="isVisible" class="md:hidden bg-gray-600">
+                    <ul class="flex flex-col space-y-4 p-4 m-2">
+                        <li><a href="/portfolio/overview" class="text-white">Portfolio</a></li>
+                        <li><a href="/analysis/overview" class="text-white">Analysis</a></li>
+                    </ul>
+                </div>
+            </nav>
+        </div>
+
+        <div class="relative">
+            <div id="tsparticles" class="absolute top-0 left-0 w-full h-full z-0"></div>
+            <div class="relative bg-cover bg-contain flex items-center justify-center min-h-screen sm:min-h-screen z-10">
+                <div class="text-center p-4 max-w-screen-lg mx-auto">
+                    <h1 class="text-white text-5xl md:text-6xl lg:text-8xl font-bold mb-4 italic">openIDX3</h1>
+                    <h2 class="text-white text-xl md:text-2xl lg:text-4xl font-bold mb-4">Quantitative Intelligence.</h2>
+                    <div class="mt-8">
+                        <a href="/portfolio/overview" class="text-white bg-blue-500 hover:bg-blue-700 font-bold py-2 px-4 rounded text-l md:text-xl lg:text-3xl">Start</a>
+                    </div>
+                </div>
+            </div>
+        </div>        
+        
+        <footer class="bg-gray-600 mt-auto">
+            <p class="text-white text-center py-4">&copy; 2024 openIDX3. All rights reserved. Version {{ version }}</p>
+        </footer>
+
+    </div>
+
+    <script src="../static/index-app.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tsparticles/preset-triangles@3/tsparticles.preset.triangles.bundle.min.js"></script>
+    <script type="text/javascript">
+        tsParticles.load({
+            id: "tsparticles",
+            options: {
+                preset: "triangles",
+                fullScreen: {
+                    enable: false,
+                },
+                particles: {
+                    move: {
+                        speed: 1,
+                    },
+                    number: {
+                        value: window.innerWidth < 768 ? 25 : 100,
+                    }
+                },
+            },
+        });
+    </script>
+</body>
+</html>

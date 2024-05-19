@@ -1,0 +1,15 @@
+arch==6.3.0
+beautifulsoup4==4.12.3
+cloudscraper==1.2.71
+deep_translator==1.11.4
+Flask==2.3.2
+flask_sqlalchemy==3.1.1
+matplotlib==3.7.1
+numpy==1.26.4
+pandas==2.2.2
+plotly==5.15.0
+pmdarima==2.0.4
+Requests==2.31.0
+scipy==1.13.0
+statsmodels==0.14.0
+yfinance==0.2.37
