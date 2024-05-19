@@ -67,30 +67,37 @@
 
                 <div>
                     <div class="lg:flex lg:flex-row">
-                        <div class="overflow-x-auto overflow-y-auto w-full">
-                            <table class="min-w-full w-full border mt-8">
-                                <thead>
-                                    <tr class="text-xl">
-                                        <th class="py-2 px-4 bg-gray-300 border-b">Portfolio Capital</th>
-                                        <th class="py-2 px-4 bg-gray-300 border-b">Portfolio Current Market Value</th>
-                                        <th class="py-2 px-4 bg-gray-300 border-b">Portfolio Profit/Loss (IDR)</th>
-                                        <th class="py-2 px-4 bg-gray-300 border-b">Portfolio Profit/Loss (%)</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <tr class="text-3xl">
-                                        <td class="py-2 px-4 border-b text-center">{{ portfolio_value }}</td>
-                                        <td class="py-2 px-4 border-b text-center">{{ market_value }}</td>
-                                        <td class="py-2 px-4 border-b text-center {% if market_value > portfolio_value %} text-green-500 
-                                            {% elif market_value < portfolio_value %} text-red-500 
-                                            {% else %} text-yellow-500 {% endif %}">{{ market_value - portfolio_value }}</td>
-                                        <td class="py-2 px-4 border-b text-center {% if market_value > portfolio_value %} text-green-500 
-                                            {% elif market_value < portfolio_value %} text-red-500 
-                                            {% else %} text-yellow-500 {% endif %}">{{ ((market_value - portfolio_value) / portfolio_value * 100)|round(2) }}%</td>
-                                    </tr>
-                                </tbody>
-                            </table>
-                        </div>
+                        {% if portfolio_value %}
+                            <div class="overflow-x-auto overflow-y-auto w-full">
+                                    <table class="min-w-full w-full border mt-8">
+                                        <thead>
+                                            <tr class="text-xl">
+                                                <th class="py-2 px-4 bg-gray-300 border-b">Portfolio Capital</th>
+                                                <th class="py-2 px-4 bg-gray-300 border-b">Portfolio Current Market Value</th>
+                                                <th class="py-2 px-4 bg-gray-300 border-b">Portfolio Profit/Loss (IDR)</th>
+                                                <th class="py-2 px-4 bg-gray-300 border-b">Portfolio Profit/Loss (%)</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <tr class="text-3xl">
+                                                <td class="py-2 px-4 border-b text-center">{{ portfolio_value }}</td>
+                                                <td class="py-2 px-4 border-b text-center">{{ market_value }}</td>
+                                                <td class="py-2 px-4 border-b text-center {% if market_value > portfolio_value %} text-green-500 
+                                                    {% elif market_value < portfolio_value %} text-red-500 
+                                                    {% else %} text-yellow-500 {% endif %}">{{ market_value - portfolio_value }}</td>
+                                                <td class="py-2 px-4 border-b text-center {% if market_value > portfolio_value %} text-green-500 
+                                                    {% elif market_value < portfolio_value %} text-red-500 
+                                                    {% else %} text-yellow-500 {% endif %}">{{ ((market_value - portfolio_value) / portfolio_value * 100)|round(2) }}%</td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+
+                            </div>
+                        {% else %}
+                            <div class="text-center"></div>
+                                <p class="text-4xl">Portfolio is empty, add stocks to portfolio <a href="/portfolio/management" class="text-blue-400">here</a>.</p>
+                            </div>
+                        {% endif %}
                     </div>
                 </div>
 

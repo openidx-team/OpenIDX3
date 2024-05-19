@@ -71,46 +71,54 @@
                     </div>
                 </div>  
                 
-                <div class="container mt-8 mb-8 mx-auto">
-                    <div class="overflow-x-auto overflow-y-auto">
-                        <table class="min-w-full border mt-8">
-                            <thead>
-                                <tr>
-                                    <th class="py-2 px-4 bg-gray-300 border-b">Ticker</th>
-                                    <th class="py-2 px-4 bg-gray-300 border-b">Shares</th>
-                                    <th class="py-2 px-4 bg-gray-300 border-b">Buy Price</th>
-                                    <th class="py-2 px-4 bg-gray-300 border-b">Buy Date</th>
-                                    <th class="py-2 px-4 bg-gray-300 border-b">Current Price</th>
-                                    <th class="py-2 px-4 bg-gray-300 border-b">Current Market Value</th>
-                                    <th class="py-2 px-4 bg-gray-300 border-b">Profit/Loss (IDR)</th>
-                                    <th class="py-2 px-4 bg-gray-300 border-b">Profit/Loss (%)</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {% for stock in stocks %}
-                                    <tr class="{{ 'bg-white' if loop.index is odd else 'bg-gray-200' }}">
-                                        <td class="py-2 px-4 border-b text-center">{{ stock.ticker }}</td>
-                                        <td class="py-2 px-4 border-b text-center">{{ stock.shares }}</td>
-                                        <td class="py-2 px-4 border-b text-center">{{ stock.buy_price }}</td>
-                                        <td class="py-2 px-4 border-b text-center">{{ stock.buy_date }}</td> 
-                                        <td class="py-2 px-4 border-b text-center">{{ stock.current_price }}</td>
-                                        <td class="py-2 px-4 border-b text-center">{{ stock.current_price * stock.shares }}</td>
-                                        <td class="py-2 px-4 border-b text-center 
-                                            {% if stock.current_price > stock.buy_price %} text-green-500 
-                                            {% elif stock.current_price < stock.buy_price %} text-red-500 
-                                            {% else %} text-yellow-500 {% endif %}">
-                                            {{ stock.current_price * stock.shares - stock.buy_price * stock.shares }}
-                                        </td>
-                                        <td class="py-2 px-4 border-b text-center 
-                                            {% if stock.current_price > stock.buy_price %} text-green-500 
-                                            {% elif stock.current_price < stock.buy_price %} text-red-500 
-                                            {% else %} text-yellow-500 {% endif %}">
-                                            {{ ((stock.current_price * stock.shares - stock.buy_price * stock.shares) / (stock.buy_price * stock.shares) * 100)|round(2) }}%
-                                        </td>
-                                    </tr>
-                                {% endfor %}
-                            </tbody>
-                        </table>
+                <div>
+                    <div class="lg:flex lg:flex-row">
+                        {% if stocks %}
+                            <div class="overflow-x-auto overflow-y-auto w-full">
+                                <table class="min-w-full w-full border mt-8">
+                                    <thead>
+                                        <tr class="text-xl">
+                                            <th class="py-2 px-4 bg-gray-300 border-b">Ticker</th>
+                                            <th class="py-2 px-4 bg-gray-300 border-b">Shares</th>
+                                            <th class="py-2 px-4 bg-gray-300 border-b">Buy Price</th>
+                                            <th class="py-2 px-4 bg-gray-300 border-b">Buy Date</th>
+                                            <th class="py-2 px-4 bg-gray-300 border-b">Current Price</th>
+                                            <th class="py-2 px-4 bg-gray-300 border-b">Current Market Value</th>
+                                            <th class="py-2 px-4 bg-gray-300 border-b">Profit/Loss (IDR)</th>
+                                            <th class="py-2 px-4 bg-gray-300 border-b">Profit/Loss (%)</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for stock in stocks %}
+                                            <tr class="{{ 'bg-white' if loop.index is odd else 'bg-gray-200' }}">
+                                                <td class="py-2 px-4 border-b text-center">{{ stock.ticker }}</td>
+                                                <td class="py-2 px-4 border-b text-center">{{ stock.shares }}</td>
+                                                <td class="py-2 px-4 border-b text-center">{{ stock.buy_price }}</td>
+                                                <td class="py-2 px-4 border-b text-center">{{ stock.buy_date }}</td> 
+                                                <td class="py-2 px-4 border-b text-center">{{ stock.current_price }}</td>
+                                                <td class="py-2 px-4 border-b text-center">{{ stock.current_price * stock.shares }}</td>
+                                                <td class="py-2 px-4 border-b text-center 
+                                                    {% if stock.current_price > stock.buy_price %} text-green-500 
+                                                    {% elif stock.current_price < stock.buy_price %} text-red-500 
+                                                    {% else %} text-yellow-500 {% endif %}">
+                                                    {{ stock.current_price * stock.shares - stock.buy_price * stock.shares }}
+                                                </td>
+                                                <td class="py-2 px-4 border-b text-center 
+                                                    {% if stock.current_price > stock.buy_price %} text-green-500 
+                                                    {% elif stock.current_price < stock.buy_price %} text-red-500 
+                                                    {% else %} text-yellow-500 {% endif %}">
+                                                    {{ ((stock.current_price * stock.shares - stock.buy_price * stock.shares) / (stock.buy_price * stock.shares) * 100)|round(2) }}%
+                                                </td>
+                                            </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        {% else %}
+                            <div class="text-center"></div>
+                                <p class="text-4xl">Portfolio is empty, add stocks to portfolio <a href="/portfolio/management" class="text-blue-400">here</a>.</p>
+                            </div>
+                        {% endif %}
                     </div>
                 </div>            
                 

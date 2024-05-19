@@ -35,13 +35,14 @@ def portfolio(path='overview'):
 
     elif path == 'returns':
         stocks = Stock.query.all()
-        portfolio_profitloss_line_chartData = returns_graph(stocks)
+        portfolio_profitloss_line_chartData = returns_graph()
 
-        for stock in stocks:
-            stock.current_price = get_stock_data(stock.ticker).iloc[-1]['Close']
-            stock.ticker = stock.ticker[:-3]
-            stock.buy_price = round(stock.buy_price, 2)
-            stock.buy_date = stock.buy_date.strftime('%Y-%m-%d') 
+        if portfolio_profitloss_line_chartData != None:
+            for stock in stocks:
+                stock.current_price = get_stock_data(stock.ticker).iloc[-1]['Close']
+                stock.ticker = stock.ticker[:-3]
+                stock.buy_price = round(stock.buy_price, 2)
+                stock.buy_date = stock.buy_date.strftime('%Y-%m-%d') 
 
         return render_template('portfolio-returns.html', portfolio_profitloss_line_chartData=portfolio_profitloss_line_chartData, stocks=stocks, version=version)
 
