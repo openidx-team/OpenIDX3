@@ -10,7 +10,7 @@ This program serves as a Stock Portfolio Management System tailored for the Indo
 - View an overview of your entire stock portfolio.
 - Display key metrics such as portfolio value, market value, and individual stock details including current price, buy price, and buy date.
 - Visualize data with line charts and pie charts, including profit/loss information.
-- Analyze the returns on your investments.
+- Analyze the returns on your stock investments.
 - Manage your stock portfolio with features to add, edit, or delete stocks.
 - Validate and process form data to ensure correct input.
 - Update portfolio based on user inputs and display appropriate success or error messages.
