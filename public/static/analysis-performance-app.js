@@ -62,10 +62,12 @@ const app = {
                     xaxis2: data.layout.xaxis2,
                     xaxis3: data.layout.xaxis3,
                     xaxis4: data.layout.xaxis4,
+                    xaxis5: data.layout.xaxis5,
                     yaxis: data.layout.yaxis,
                     yaxis2: data.layout.yaxis2,
                     yaxis3: data.layout.yaxis3,
                     yaxis4: data.layout.yaxis4,
+                    yaxis5: data.layout.yaxis5,
                 };
 
                 Plotly.newPlot('stockPerformanceGraphData', plotlyData, layout);

@@ -5,6 +5,8 @@ This module contains the main Flask application for the OpenIDX3 project.
 import json
 from datetime import datetime
 
+from extensions import app, db
+from validator import validate_stock
 from analysis import (
     Stock,
     get_stock_data,
@@ -18,13 +20,10 @@ from analysis import (
     ownership_graph,
     performance_graph
 )
-from extensions import app, db
 
 from flask import render_template, send_from_directory, url_for, request, redirect, flash, jsonify
 
-import yfinance as yf
-
-VERSION = 'Alpha 19.05.24'
+VERSION = 'Alpha 24.05.24'
 
 @app.route('/')
 def index():
@@ -85,17 +84,14 @@ def portfolio(path='overview'):
         stocks = Stock.query.all()
         if request.method == "POST":
             request_type = request.form['type']
-            ticker = request.form['ticker'].upper()
+            ticker = request.form['ticker']
             shares = request.form['shares']
             buy_price = request.form['buy_price']
             buy_date = request.form['buy_date']
 
-            if '.JK' not in ticker:
-                ticker = ticker + '.JK'
-            try:
-                yf.Ticker(ticker).info
-            except ValueError:
-                flash(('Invalid ticker', 'danger'))
+            is_valid, ticker = validate_stock(ticker)
+            if not is_valid:
+                flash((f'{ticker[:-3]} is an invalid ticker', 'danger'))
                 return redirect(url_for('portfolio', path='management'))
 
             if (not shares.replace('.', '').isdigit() or
@@ -115,6 +111,10 @@ def portfolio(path='overview'):
             except ValueError:
                 flash(('Invalid buy date format', 'danger'))
                 return redirect(url_for('portfolio', path='management'))
+            
+            if buy_date > datetime.now().date():
+                flash(('Buy date cannot be in the future', 'danger'))
+                return redirect(url_for('portfolio', path='management'))
 
             stock = Stock()
 
@@ -124,8 +124,9 @@ def portfolio(path='overview'):
                     new_shares = existing_stock.shares + float(shares)
                     new_buy_price = ((existing_stock.shares * existing_stock.buy_price) +
                         (float(shares) * float(buy_price))) / new_shares
-                    stock.update_stock(ticker, shares=new_shares, buy_price=new_buy_price)
-                    flash((f'Stock {ticker} has been updated', 'success'))
+                    new_buy_date = buy_date
+                    stock.update_stock(ticker, shares=new_shares, buy_price=new_buy_price, buy_date=new_buy_date)
+                    flash((f'Stock {ticker[:-3]} has been updated', 'success'))
                     return redirect(url_for('portfolio', path='management'))
 
                 if not stock.read_stock(ticker):
@@ -176,7 +177,11 @@ def analysis(path='overview'):
         if request.method == 'POST':
             data = request.get_json()
             request_type = data['type']
-            ticker = data['ticker'].upper()
+            ticker = data['ticker']
+
+            is_valid, ticker = validate_stock(ticker)
+            if not is_valid:
+                return jsonify({'error': f'{ticker[:-3]} is an invalid ticker'})
 
             if request_type == "ownership":
                 stock_ownership_graph_data = ownership_graph(ticker)
@@ -191,19 +196,23 @@ def analysis(path='overview'):
         if request.method == 'POST':
             data = request.get_json()
             request_type = data['type']
-            ticker = data['ticker'].upper()
+            ticker = data['ticker']
             risk_free_rate = data['riskFreeRate']
 
-            if '.JK' not in ticker:
-                ticker = ticker + '.JK'
+            is_valid, ticker = validate_stock(ticker)
+            if not is_valid:
+                return jsonify({'error': f'{ticker[:-3]} is an invalid ticker'})
 
-            try:
-                yf.Ticker(ticker).info
-            except ValueError:
-                return jsonify({'error': 'Invalid ticker'})
+            if len(ticker) == 0:
+                return jsonify({'error': 'Select at least 1 stock'})
+
+            if risk_free_rate == '' or float(risk_free_rate) < 0 or float(risk_free_rate) > 1:
+                return jsonify({'error': 'Risk-free rate must be between 0 and 1'})
 
             if request_type == "performance":
                 stock_performance_graph_data = performance_graph(ticker, risk_free_rate)
+                if stock_performance_graph_data == "1":
+                    return jsonify({'error': 'Select at least 1 stock'})
             else:
                 return jsonify({'error': 'Invalid request type'})
 
@@ -215,14 +224,11 @@ def analysis(path='overview'):
         if request.method == 'POST':
             data = request.get_json()
             request_type = data['type']
-            ticker = data['ticker'].upper()
+            ticker = data['ticker']
 
-            if '.JK' not in ticker:
-                ticker = ticker + '.JK'
-            try:
-                yf.Ticker(ticker).info
-            except ValueError:
-                return jsonify({'error': 'Invalid ticker'})
+            is_valid, ticker = validate_stock(ticker)
+            if not is_valid:
+                return jsonify({'error': f'{ticker[:-3]} is an invalid ticker'})
 
             if request_type == "distribution":
                 stock_distribution_graph_data = distribution_graph(ticker)
@@ -246,16 +252,19 @@ def analysis(path='overview'):
                 if stock == "portfolio":
                     cleaned_ticker = "portfolio"
                     break
-                if '.JK' not in stock:
-                    stock = stock.upper()
-                    stock = stock + '.JK'
+
+                is_valid, stock = validate_stock(stock)
+                if not is_valid:
+                    return jsonify({'error': f'{stock[:-3]} is an invalid ticker'})
 
                 cleaned_ticker.append(stock)
 
             if len(cleaned_ticker) == 0:
                 return jsonify({'error': 'Select at least 2 stocks'})
+
             if risk_free_rate == '' or num_portfolios not in range(1, 10001):
                 return jsonify({'error': 'Number of portfolios must be between 1 and 10000'})
+
             if risk_free_rate == '' or float(risk_free_rate) < 0 or float(risk_free_rate) > 1:
                 return jsonify({'error': 'Risk-free rate must be between 0 and 1'})
 
@@ -265,7 +274,7 @@ def analysis(path='overview'):
                 return jsonify({'error': 'Invalid request type'})
 
             if stock_optimization_graphData == "1":
-                return jsonify({'error': 'Please add more than one stock to be analyzed'})
+                return jsonify({'error': 'The stock in your portfolio must be more than 1'})
             if stock_optimization_graphData == "2":
                 return jsonify({
                     'error': 'At least one of the assets must have an expected return exceeding the risk-free rate'
@@ -301,9 +310,10 @@ def analysis(path='overview'):
                 if stock == "portfolio":
                     cleaned_ticker = "portfolio"
                     break
-                if '.JK' not in stock:
-                    stock = stock.upper()
-                    stock = stock + '.JK'
+                
+                is_valid, stock = validate_stock(stock)
+                if not is_valid:
+                    return jsonify({'error': f'{stock[:-3]} is an invalid ticker'})
 
                 cleaned_ticker.append(stock)
 
@@ -325,22 +335,20 @@ def analysis(path='overview'):
     if path == 'decomposition':
         if request.method == "POST":
             data = request.get_json()
-            ticker = data['ticker'].upper()
+            request_type = data['type']
+            ticker = data['ticker']
             period = data['period']
 
             period = int(period)
 
-            if ticker == '':
-                return jsonify({'error': 'Please enter a ticker'})
-            if '.JK' not in ticker:
-                ticker = ticker + '.JK'
+            is_valid, ticker = validate_stock(ticker)
+            if not is_valid:
+                return jsonify({'error': f'{ticker[:-3]} is an invalid ticker'})
 
-            try:
-                yf.Ticker(ticker).info
-            except ValueError:
-                return jsonify({'error': 'Invalid ticker'})
-
-            stock_decomposition_graph_data = decomposition_graph(ticker, period)
+            if request_type == 'decomposition':
+                stock_decomposition_graph_data = decomposition_graph(ticker, period)
+            else:
+                return jsonify({'error': 'Invalid request type'})
 
             if stock_decomposition_graph_data == "1":
                 return jsonify({'error': 'Please enter a valid ticker'})
@@ -354,15 +362,12 @@ def analysis(path='overview'):
     if path == 'garch':
         if request.method == "POST":
             data = request.get_json()
-            ticker = data['ticker'].upper()
             request_type = data['type']
+            ticker = data['ticker']
 
-            if '.JK' not in ticker:
-                ticker = ticker + '.JK'
-            try:
-                yf.Ticker(ticker).info
-            except ValueError:
-                return jsonify({'error': 'Invalid ticker'})
+            is_valid, ticker = validate_stock(ticker)
+            if not is_valid:
+                return jsonify({'error': f'{ticker[:-3]} is an invalid ticker'})
 
             if request_type == 'garch':
                 stock_garch_graph_data = garch_graph(ticker)

@@ -24,8 +24,8 @@ from pypfopt import risk_models
 from pypfopt import expected_returns
 from pypfopt import plotting
 
-from transformers import AutoTokenizer, TFRobertaForSequenceClassification
-from transformers import pipeline
+# from transformers import AutoTokenizer, TFRobertaForSequenceClassification
+# from transformers import pipeline
 
 from deep_translator import GoogleTranslator
 
@@ -39,9 +39,12 @@ from plotly.subplots import make_subplots
 
 scraper = cloudscraper.create_scraper()
 
-tokenizer = AutoTokenizer.from_pretrained("mrm8488/distilroberta-finetuned-financial-news-sentiment-analysis")
-model = TFRobertaForSequenceClassification.from_pretrained("mrm8488/distilroberta-finetuned-financial-news-sentiment-analysis")
-nlp = pipeline("sentiment-analysis", model=model, tokenizer=tokenizer)
+tokenizer = "a"
+model = "a"
+nlp = "a"
+# tokenizer = AutoTokenizer.from_pretrained("mrm8488/distilroberta-finetuned-financial-news-sentiment-analysis")
+# model = TFRobertaForSequenceClassification.from_pretrained("mrm8488/distilroberta-finetuned-financial-news-sentiment-analysis")
+# nlp = pipeline("sentiment-analysis", model=model, tokenizer=tokenizer)
 
 class Stock(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -249,7 +252,7 @@ def decomposition_graph(stock, period):
     returns = np.log(data[['Close']].dropna())
     prices = data[['Close']]
 
-    periods_to_test = [30, 60, 90, 180, 365]
+    periods_to_test = [30, 60, 90, 180, 365, 730]
 
     if period not in periods_to_test:
         return "2"
@@ -316,7 +319,7 @@ def garch_graph(stock):
 
 def optimization_graph(stocks, numPortfolios, riskFreeRate):
     stock_tickers = []
-    if stocks == "portfolio":
+    if str(stocks) == "portfolio":
         stocks = Stock.query.all()
         stock_tickers = [stock.ticker for stock in stocks]
     else:
@@ -412,12 +415,10 @@ def distribution_graph(stock):
 
     mean = stock_close.rolling(time_period).mean()
     median = stock_close.rolling(time_period).median()
-    mode = stock_close.rolling(time_period).apply(lambda x: x.mode().mean())
     mean = remove_outliers(mean)
     median = remove_outliers(median)
-    mode = remove_outliers(mode)
 
-    fig = make_subplots(rows=5, cols=1, shared_xaxes=True, subplot_titles=("Price", f"Kurtosis {mean_kurtosis:.2f}", f"Skewness {mean_skewness:.2f}", f"Variance {mean_variance:.2f}", "Mean, Median, and Mode"))
+    fig = make_subplots(rows=5, cols=1, shared_xaxes=True, subplot_titles=("Price", f"Kurtosis {mean_kurtosis:.2f}", f"Skewness {mean_skewness:.2f}", f"Variance {mean_variance:.2f}", "Mean and Median"))
     fig.update_layout(title_text=f"{stock[:-3].upper()} Stock Distribution Analysis, Rolling {time_period} Days", showlegend=False)
 
     fig.add_trace(go.Scatter(x=stock_close_copy.index, y=stock_close_copy, mode='lines', name='Price'), row=1, col=1)
@@ -436,7 +437,6 @@ def distribution_graph(stock):
 
     fig.add_trace(go.Scatter(x=mean.index, y=mean, mode='lines', name='Mean'), row=5, col=1)
     fig.add_trace(go.Scatter(x=median.index, y=median, mode='lines', name='Median', line=dict(color='red')), row=5, col=1)
-    fig.add_trace(go.Scatter(x=mode.index, y=mode, mode='lines', name='Mode', line=dict(color='green')), row=5, col=1)
 
     return fig.to_json()
 
@@ -480,7 +480,7 @@ def ownership_graph(stock, sum_mode=False, top_n=5):
 
     data_filtered.index = data_filtered.index.astype(str)
 
-    fig = make_subplots(rows=1, cols=3, shared_xaxes=True, subplot_titles=('Top Holders', 'Total Foreign vs Total Domestic', 'Correlation Heatmap'))
+    fig = make_subplots(rows=1, cols=3, shared_xaxes=True, subplot_titles=('Type of Holders', 'Total Foreign vs Total Domestic', 'Correlation Heatmap'))
     fig.update_layout(title_text=f'{stock} Stock Holder Analysis', showlegend=False)
     fig.update_layout(barmode='stack')
 
@@ -559,19 +559,21 @@ def performance_graph(stock, riskFreeRate):
     information_ratio = remove_outliers(information_ratio)
     mean_information = information_ratio.mean()
 
-    fig = make_subplots(rows=4, cols=1, subplot_titles=('Sharpe Ratio', 'Sortino Ratio', 'Treynor Ratio', 'Information Ratio'))
+    fig = make_subplots(rows=5, cols=1, shared_xaxes=True, subplot_titles=('Price', 'Sharpe Ratio', 'Sortino Ratio', 'Treynor Ratio', 'Information Ratio'))
     fig.update_layout(title_text=f'{stock[:-3].upper()} Stock Risk-Adjusted Performance Analysis, 30 Days Period', showlegend=False)
 
-    fig.add_trace(go.Scatter(x=sharpe_ratio.index, y=sharpe_ratio, mode='lines', name='Sharpe Ratio'), row=1, col=1)
-    fig.add_trace(go.Scatter(x=sharpe_ratio.index, y=[mean_sharpe]*len(sharpe_ratio), mode='lines', name='Mean Sharpe Ratio', line=dict(color='red')), row=1, col=1)
+    fig.add_trace(go.Scatter(x=stock_price.index, y=stock_price, mode='lines', name='Price'), row=1, col=1)
 
-    fig.add_trace(go.Scatter(x=sortino_ratio.index, y=sortino_ratio, mode='lines', name='Sortino Ratio'), row=2, col=1)
-    fig.add_trace(go.Scatter(x=sortino_ratio.index, y=[mean_sortino]*len(sortino_ratio), mode='lines', name='Mean Sortino Ratio', line=dict(color='red')), row=2, col=1)
+    fig.add_trace(go.Scatter(x=sharpe_ratio.index, y=sharpe_ratio, mode='lines', name='Sharpe Ratio'), row=2, col=1)
+    fig.add_trace(go.Scatter(x=sharpe_ratio.index, y=[mean_sharpe]*len(sharpe_ratio), mode='lines', name='Mean Sharpe Ratio', line=dict(color='red')), row=2, col=1)
 
-    fig.add_trace(go.Scatter(x=treynor_ratio.index, y=treynor_ratio, mode='lines', name='Treynor Ratio'), row=3, col=1)
-    fig.add_trace(go.Scatter(x=treynor_ratio.index, y=[mean_treynor]*len(treynor_ratio), mode='lines', name='Mean Treynor Ratio', line=dict(color='red')), row=3, col=1)
+    fig.add_trace(go.Scatter(x=sortino_ratio.index, y=sortino_ratio, mode='lines', name='Sortino Ratio'), row=3, col=1)
+    fig.add_trace(go.Scatter(x=sortino_ratio.index, y=[mean_sortino]*len(sortino_ratio), mode='lines', name='Mean Sortino Ratio', line=dict(color='red')), row=3, col=1)
 
-    fig.add_trace(go.Scatter(x=information_ratio.index, y=information_ratio, mode='lines', name='Information Ratio'), row=4, col=1)
-    fig.add_trace(go.Scatter(x=information_ratio.index, y=[mean_information]*len(information_ratio), mode='lines', name='Mean Information Ratio', line=dict(color='red')), row=4, col=1)
+    fig.add_trace(go.Scatter(x=treynor_ratio.index, y=treynor_ratio, mode='lines', name='Treynor Ratio'), row=4, col=1)
+    fig.add_trace(go.Scatter(x=treynor_ratio.index, y=[mean_treynor]*len(treynor_ratio), mode='lines', name='Mean Treynor Ratio', line=dict(color='red')), row=4, col=1)
+
+    fig.add_trace(go.Scatter(x=information_ratio.index, y=information_ratio, mode='lines', name='Information Ratio'), row=5, col=1)
+    fig.add_trace(go.Scatter(x=information_ratio.index, y=[mean_information]*len(information_ratio), mode='lines', name='Mean Information Ratio', line=dict(color='red')), row=5, col=1)
 
     return fig.to_json()
