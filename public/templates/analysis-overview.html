@@ -74,13 +74,16 @@
                             <ul class="space-y-2 hidden group-hover:block">
                                 <li class="mb-2"><i class="bi-newspaper mt-2"></i><a href="/analysis/sentiment" class="hover:text-gray-300"> News Sentiment</a></li>
                             </ul>
+                            <ul class="space-y-2 hidden group-hover:block">
+                                <li class="mb-2"><i class="bi-calculator-fill mt-2"></i><a href="/analysis/prediction" class="hover:text-gray-300"> Price Prediction</a></li>
+                            </ul>
                         </div>
                     </li>
                 </ul>
             </div>
         
             <div class="flex-grow p-8">
-                <h2 class="text-3xl font-bold mb-4">Analysis Overview</h2>
+                <h2 class="text-3xl font-bold mb-4">Portfolio Overview</h2>
 
                 <div class="container">
                     {% with messages = get_flashed_messages() %}
@@ -96,10 +99,55 @@
                         {% endif %}
                     {% endwith %}
                 </div>    
-                
-                <div>
 
-                </div>                
+                <div class="mb-4">
+                    {% if overall_assessment %}
+                    <p class="text-3xl text-center">
+                        Your portfolio is 
+                        <span class="{% if overall_assessment.lower() == 'good' %}text-green-500{% elif overall_assessment.lower() == 'bad' %}text-red-500{% else %}text-yellow-500{% endif %}">
+                            {{ overall_assessment.lower() }}
+                        </span>
+                        overall.
+                    </p>
+                    {% else %}
+                        <div class="text-center"></div>
+                        <p class="text-4xl">Portfolio is empty, add stocks to portfolio <a href="/portfolio/management" class="text-blue-400">here</a>.</p>
+                        </div>
+                    {% endif %}
+
+                    {% if portfolio_analysis_overview %}
+                    <div class="overflow-x-auto overflow-y-auto">
+                        <table class="min-w-full border mt-8">
+                            <thead>
+                                <tr>
+                                    <th class="py-2 px-4 bg-gray-300 border-b">Metrics</th>
+                                    <th class="py-2 px-4 bg-gray-300 border-b">Value</th>
+                                    <th class="py-2 px-4 bg-gray-300 border-b">Condition</th>
+                                </tr>
+                            </thead>
+                            <tbody class="text-center">
+                                {% for metric, details in portfolio_analysis_overview.items() %}
+                                    <tr>
+                                        <td class="py-2 px-4 border-b">{{ metric }}</td>
+                                        <td class="py-2 px-4 border-b">
+                                            {% if metric in ['Portfolio Volatility', 'Portfolio Max Drawdown', 'Portfolio Value at Risk', 'Portfolio Conditional Value at Risk'] %}
+                                                {{ (details.value * 100) | round(2) }}%
+                                            {% else %}
+                                                {{ details.value }}
+                                            {% endif %}
+                                        </td>
+                                        <td class="py-2 px-4 border-b">
+                                            <span class="{% if details.condition == 'Good' %}text-green-500{% elif details.condition == 'Bad' %}text-red-500{% else %}text-gray-500{% endif %}">
+                                                {{ details.condition }}
+                                            </span>
+                                        </td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% endif %}
+                </div>
                 
             </div>
         </div>

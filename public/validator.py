@@ -41,7 +41,6 @@ def validate_stock(ticker):
     """
     This function validates a stock ticker and modifies it if necessary.
     """
-    print(ticker)
 
     ticker = ticker.upper().strip()
 

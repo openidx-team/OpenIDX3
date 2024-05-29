@@ -83,7 +83,7 @@
             </div>
         
             <div class="flex-grow p-8">
-                <h2 class="text-3xl font-bold mb-4">Risk-Adjusted Performance Analysis</h2>
+                <h2 class="text-3xl font-bold mb-4">Stock Price Prediction Analysis</h2>
 
                 <div class="container">
                     <div v-if="alertMessage" 
@@ -105,14 +105,17 @@
                                 Analyze
                             </button>
                         </div>
-                        <p class="block text-gray-700 text-s font-bold mt-4 mb-2">Risk-Free Rate</p>
+                        <p class="block text-gray-700 text-s font-bold mt-4 mb-2">Select Prediction Model:</p>
                         <div class="flex items-center">
-                            <input type="number" id="risk_free_rate" v-model="riskFreeRate" placeholder="Enter risk-free rate" step="0.001" class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline">
+                            <select v-model="model" class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline">
+                                <option value="LSTM">LSTM</option>
+                                <option value="ARIMA">ARIMA</option>
+                            </select>
                         </div>
                     </form>
                 </div>                            
                 
-                <div id="stockPerformanceGraphData" class="h-lvh"></div>
+                <div id="stockPredictionnGraphData" class="h-lvh"></div>
             
             </div>
         </div>
@@ -123,6 +126,6 @@
 
     </div>
 
-    <script src="../static/analysis-performance-app.js"></script>
+    <script src="../static/analysis-prediction-app.js"></script>
 </body>
 </html>

@@ -5,7 +5,9 @@ import os
 import random
 import threading
 import json
-from datetime import datetime
+from datetime import datetime, timedelta
+import locale
+import re
 
 import yfinance as yf
 
@@ -13,38 +15,39 @@ import pandas as pd
 import numpy as np
 
 from arch import arch_model
+from scipy import stats
 import statsmodels.api as sm
 import statsmodels.tsa as tsa
 from statsmodels.tsa.stattools import acf
 from statsmodels.tools.eval_measures import aic
 from statsmodels.tsa.seasonal import STL
+from statsmodels.tsa.arima.model import ARIMA
+from pmdarima import auto_arima
 from pmdarima.model_selection import train_test_split
 from pypfopt import EfficientFrontier
 from pypfopt import risk_models
 from pypfopt import expected_returns
 from pypfopt import plotting
 
-# from transformers import AutoTokenizer, TFRobertaForSequenceClassification
-# from transformers import pipeline
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import LSTM, Dense
+from sklearn.preprocessing import MinMaxScaler
+
+from transformers import AutoTokenizer, TFRobertaForSequenceClassification
+from transformers import pipeline
 
 from deep_translator import GoogleTranslator
 
 import requests
 from bs4 import BeautifulSoup
-import cloudscraper
 
 import plotly.graph_objects as go
 import plotly.express as px
 from plotly.subplots import make_subplots
 
-scraper = cloudscraper.create_scraper()
-
-tokenizer = "a"
-model = "a"
-nlp = "a"
-# tokenizer = AutoTokenizer.from_pretrained("mrm8488/distilroberta-finetuned-financial-news-sentiment-analysis")
-# model = TFRobertaForSequenceClassification.from_pretrained("mrm8488/distilroberta-finetuned-financial-news-sentiment-analysis")
-# nlp = pipeline("sentiment-analysis", model=model, tokenizer=tokenizer)
+tokenizer = AutoTokenizer.from_pretrained("mrm8488/distilroberta-finetuned-financial-news-sentiment-analysis")
+model = TFRobertaForSequenceClassification.from_pretrained("mrm8488/distilroberta-finetuned-financial-news-sentiment-analysis")
+nlp = pipeline("sentiment-analysis", model=model, tokenizer=tokenizer)
 
 class Stock(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -101,7 +104,6 @@ def get_stock_data(tickers):
                 try:
                     data = yf.download(ticker)
                 except Exception as e:
-                    print(e)
                     return "1"
                 data.to_csv(cache_file)
             
@@ -131,8 +133,6 @@ def get_stock_fundamental(stocks):
 
     if stock_tickers == []:
         return "1"
-
-    print(stock_tickers)
 
     fundamental_data = {}
     for stock in stock_tickers:
@@ -247,6 +247,132 @@ def returns_graph():
 
     return portfolio_profitloss_line_chartData
 
+def get_portfolio_analysis(period, riskFreeRate):
+    stocks = Stock.query.all()
+    if stocks == []:
+        return "1"
+    
+    stock_values = []
+    for stock in stocks:
+        data = get_stock_data(stock.ticker)
+        data.index = pd.to_datetime(data.index)
+        latest_date = data.index.max()
+        latest_close_price = data.loc[latest_date, 'Close']
+        stock_value = latest_close_price * stock.shares
+        stock_values.append(stock_value)
+
+    tickers = [stock.ticker for stock in stocks]
+    stock_data = yf.download(tickers, start="2020-01-01", end="2023-01-01")
+
+    stock_close = stock_data['Close']
+    stock_returns = np.log(stock_close.pct_change() + 1)
+    market_data = yf.download('^JKSE', start=stock_close.index.min(), end=stock_close.index.max())
+    market_close = market_data['Close']
+    market_returns = np.log(market_close.pct_change() + 1)
+
+    if len(stocks) > 1:
+        portfolio_value = sum(stock_values)
+        portfolio_weights = [stock_value / portfolio_value for stock_value in stock_values]
+
+        portfolio_returns = stock_returns.dot(portfolio_weights)
+
+        riskFreeRate_daily = riskFreeRate / period
+        stock_returns_excess = stock_returns.subtract(riskFreeRate_daily, axis=0)
+        portfolio_returns_excess = portfolio_returns - riskFreeRate_daily
+        market_returns_excess = market_returns - riskFreeRate_daily
+
+        portfolio_volatility = np.std(portfolio_returns) * np.sqrt(period)
+
+        cum_ret = (1 + portfolio_returns).cumprod()
+        cum_roll_max = cum_ret.cummax()
+        drawdown = cum_ret / cum_roll_max - 1
+        max_drawdown = drawdown.min()
+
+        mean_portfolio = portfolio_returns.mean()
+        std_dev_portfolio = portfolio_returns.std()
+        portfolio_VaR = mean_portfolio - std_dev_portfolio * stats.norm.ppf(0.05)
+
+        portfolio_CVaR = portfolio_returns[portfolio_returns <= portfolio_VaR].mean()
+
+        cov_matrix = stock_returns_excess.cov()
+        market_var = market_returns_excess.var()
+        beta = np.dot(portfolio_weights, cov_matrix.dot(portfolio_weights)) / market_var
+
+        alpha = mean_portfolio - riskFreeRate_daily - beta * (market_returns_excess.mean() - riskFreeRate_daily)
+
+        jensen_alpha = portfolio_returns.mean() - riskFreeRate_daily - beta * (market_returns.mean() - riskFreeRate_daily)
+
+        sharpe_ratio = (portfolio_returns.mean() - riskFreeRate_daily) / portfolio_volatility
+
+        downside_returns = portfolio_returns[portfolio_returns < 0]
+        downside_std_dev = downside_returns.std()
+        sortino_ratio = (portfolio_returns.mean() - riskFreeRate_daily) / downside_std_dev * np.sqrt(period)
+
+        treynor_ratio = (portfolio_returns.mean() - riskFreeRate_daily) / beta
+    else:
+        portfolio_value = stock_values[0]
+        portfolio_returns = stock_returns
+
+        riskFreeRate_daily = riskFreeRate / period
+        stock_returns_excess = stock_returns.subtract(riskFreeRate_daily, axis=0)
+        portfolio_returns_excess = portfolio_returns - riskFreeRate_daily
+        market_returns_excess = market_returns - riskFreeRate_daily
+
+        portfolio_volatility = np.std(portfolio_returns) * np.sqrt(period)
+
+        cum_ret = (1 + portfolio_returns).cumprod()
+        cum_roll_max = cum_ret.cummax()
+        drawdown = cum_ret / cum_roll_max - 1
+        max_drawdown = drawdown.min()
+
+        mean_portfolio = portfolio_returns.mean()
+        std_dev_portfolio = portfolio_returns.std()
+        portfolio_VaR = mean_portfolio - std_dev_portfolio * stats.norm.ppf(0.05)
+
+        portfolio_CVaR = portfolio_returns[portfolio_returns <= portfolio_VaR].mean()
+
+        cov_matrix = stock_returns_excess.cov(stock_returns_excess) 
+        market_var = market_returns_excess.var()
+        beta = cov_matrix / market_var
+
+        alpha = mean_portfolio - riskFreeRate_daily - beta * (market_returns_excess.mean() - riskFreeRate_daily)
+
+        jensen_alpha = portfolio_returns.mean() - riskFreeRate_daily - beta * (market_returns.mean() - riskFreeRate_daily)
+
+        sharpe_ratio = (portfolio_returns.mean() - riskFreeRate_daily) / portfolio_volatility
+
+        downside_returns = portfolio_returns[portfolio_returns < 0]
+        downside_std_dev = downside_returns.std()
+        sortino_ratio = (portfolio_returns.mean() - riskFreeRate_daily) / downside_std_dev * np.sqrt(period)
+
+        treynor_ratio = (portfolio_returns.mean() - riskFreeRate_daily) / beta
+    
+    def get_condition(value):
+        rounded_value = round(value, 2)
+        if rounded_value > 0:
+            return "Good"
+        elif rounded_value < 0:
+            return "Bad"
+        else:
+            return "Neutral"
+
+    analysis = {
+        'Portfolio Volatility': portfolio_volatility,
+        'Portfolio Max Drawdown': max_drawdown,
+        'Portfolio Value at Risk': portfolio_VaR,
+        'Portfolio Conditional Value at Risk': portfolio_CVaR,
+        'Portfolio Beta': beta,
+        'Portfolio Alpha': alpha,
+        'Portfolio Jensen\'s Alpha': jensen_alpha,
+        'Portfolio Sharpe Ratio': sharpe_ratio,
+        'Portfolio Sortino Ratio': sortino_ratio,
+        'Portfolio Treynor Ratio': treynor_ratio
+    }
+    
+    analysis_with_conditions = {metric: {'value': round(value, 2), 'condition': get_condition(value)} for metric, value in analysis.items()}
+    
+    return analysis_with_conditions
+
 def decomposition_graph(stock, period):
     data = get_stock_data(stock)
     returns = np.log(data[['Close']].dropna())
@@ -298,7 +424,6 @@ def garch_graph(stock):
                 model_fit = model.fit(disp='off')
                 aic_values.append((p, q, model_fit.aic))
             except Exception as e:
-                # print(f"Failed to fit model for p={p}, q={q}: {e}")
                 continue
 
     p, q, _ = min(aic_values, key=lambda x:x[2])
@@ -363,7 +488,6 @@ def optimization_graph(stocks, numPortfolios, riskFreeRate):
         return fig.to_json(), ef_max_sharpe.clean_weights(), ef_min_vol.clean_weights()
     
     except Exception as e:
-        print(e)
         if str(e) == str("at least one of the assets must have an expected return exceeding the risk-free rate"):
             return "2", "2", "2"
         else:
@@ -577,3 +701,245 @@ def performance_graph(stock, riskFreeRate):
     fig.add_trace(go.Scatter(x=information_ratio.index, y=[mean_information]*len(information_ratio), mode='lines', name='Mean Information Ratio', line=dict(color='red')), row=5, col=1)
 
     return fig.to_json()
+
+def get_stock_sentiment(stock):
+    titles = []
+
+    def get_news(stock):
+        stock = stock.replace('.JK', '')
+        locale.setlocale(locale.LC_TIME, 'id_ID')
+        
+        for i in range(0, 1):
+            url = f"https://www.detik.com/search/searchall?query={stock}&sortby=time&page={i}"
+            response = requests.get(url)
+            soup = BeautifulSoup(response.content, "html.parser")
+            articles = soup.find_all("article")
+            
+            for article in articles:
+                link = article.find("a")
+                href = link.get("href")
+                title = link.text.strip()
+                date = link.text.strip()
+                
+                if title.startswith("detikFinance"):
+                    date = re.sub(r"detik\w+,", "", date)
+                    date = date.split("\n")[0].strip()
+                    date = datetime.strptime(date, "%d %b %Y %H:%M WIB").strftime("%Y-%m-%d %H:%M:%S")
+                    title = title.split("\n")[1].strip()
+                
+                if stock.upper() in title.upper():
+                    if (title, date) not in titles:
+                        titles.append(("Detik", title, date, href))
+
+        for i in range(0, 2, 2):
+            url = f"https://www.kontan.co.id/search/?search={stock}&per_page={i}0"
+            response = requests.get(url)
+            soup = BeautifulSoup(response.content, "html.parser")
+            articles = soup.find_all("div", class_="ket")
+
+            pattern_days = r'(\d+)\s*Hari'
+            pattern_hours = r'(\d+)\s*Jam'
+            pattern_minutes = r'(\d+)\s*Menit'
+
+            def parse_relative_time(relative_time):
+                days = re.search(pattern_days, relative_time)
+                hours = re.search(pattern_hours, relative_time)
+                minutes = re.search(pattern_minutes, relative_time)
+
+                days = int(days.group(1)) if days else 0
+                hours = int(hours.group(1)) if hours else 0
+                minutes = int(minutes.group(1)) if minutes else 0
+
+                now = datetime.now()
+                actual_time = now - timedelta(days=days, hours=hours, minutes=minutes)
+                actual_time = actual_time.replace(microsecond=0)
+                return actual_time
+
+            for article in articles:
+                links = article.find_all("a")
+                if len(links) >= 2:
+                    href = links[1].get("href")
+                    if not href.startswith("https"):
+                        href = "https:" + href
+                
+                article_text = article.text.strip().split("|")[1].strip()
+
+                if stock.upper() in article_text.upper():
+                    date_match = re.search(r'\b\d+ (?:Hari|Jam|Menit)(?: \d+ (?:Hari|Jam|Menit))* lalu\b', article_text)
+                    if date_match:
+                        relative_time_str = date_match.group()
+                        relative_time = parse_relative_time(relative_time_str)
+                        date = relative_time.strftime('%Y-%m-%d %H:%M:%S')
+                    
+                    title = article_text.split("  ")[1].strip()
+
+                    if (title, date) not in titles:
+                        titles.append(("Kontan", title, date, href))
+
+        locale.setlocale(locale.LC_TIME, '')
+        
+        for i in range(0, 1):
+            url = f"https://search.bisnis.com/?q={stock}&per_page={i}"
+            response = requests.get(url)
+            soup = BeautifulSoup(response.content, "html.parser")
+            articles = soup.find_all("div", class_="art--row")
+            
+            for article in articles:
+                date_text = article.find("div", class_="artDate").text.strip()
+
+                if 'menit' in date_text or 'jam' in date_text or 'hari' in date_text:
+                    number = int(date_text.split()[0])
+                    unit = date_text.split()[1]
+
+                    if 'menit' in unit:
+                        delta = timedelta(minutes=number)
+                    elif 'jam' in unit:
+                        delta = timedelta(hours=number)
+                    elif 'hari' in unit:
+                        delta = timedelta(days=number)
+
+                    actual_time = datetime.now() - delta
+                    date = actual_time
+                else:
+                    date_text = date_text.replace(" WIB", "")
+                    date = datetime.strptime(date_text, "%d %B %Y %H:%M")
+
+                date_str = date.strftime("%Y-%m-%d %H:%M:%S") 
+                
+                title = article.find("h4").text.strip()
+                href = article.find("a").get("href")
+
+                if stock.upper() in title.upper():
+                    if (title, date_str) not in titles:
+                        titles.append(("Bisnis", title, date_str, href))
+
+        return titles
+
+    news = get_news(stock)
+    
+    sentences = []
+    for title in titles:
+        title = title[1]
+        translated = GoogleTranslator(source='id', target='en').translate(title)
+        sentences.append(translated)
+
+    results = nlp(sentences)
+
+    results = [result for result in results if result['score'] > 0.9]
+    score = []
+    final = {}
+    for i, result in enumerate(results):
+        final[i] = {'source': titles[i][0], 'title': titles[i][1], 'date': titles[i][2], 'link': titles[i][3], 'sentiment': result['label'], 'confidence': result['score']}
+        if result['label'] == 'positive':
+            score.append(1)
+        elif result['label'] == 'negative':
+            score.append(-1)
+        else:
+            score.append(0)
+
+    return final, score
+
+def get_stock_prediction(stock, forecast_model, forecast_period=30):
+    start = datetime.now() - timedelta(days=365*5)
+    end = datetime.now()
+    data = yf.download(stock, start=start, end=end)
+
+    if forecast_model == 'ARIMA':
+        stock_price = data['Close'].dropna()
+        stock_price = stock_price.asfreq('B').ffill()
+
+        model = auto_arima(stock_price, seasonal=False, stepwise=True, suppress_warnings=True)
+        order = model.order
+        arima_model = ARIMA(stock_price, order=order)
+        arima_fit = arima_model.fit()
+
+        forecast_index = pd.date_range(start=stock_price.index[-1], periods=forecast_period + 1)[1:]
+        forecast = arima_fit.forecast(steps=forecast_period)
+
+        fig = go.Figure()
+        fig.add_trace(go.Scatter(x=stock_price.index, y=stock_price, mode='lines', name='Actual Price'))
+        fig.add_trace(go.Scatter(x=forecast_index, y=forecast, mode='lines', name='Forecast Price'))
+
+        fig.update_layout(title_text=f'{stock[:-3]} price forecast using ARIMA for the next {forecast_period} days', showlegend=False)
+        fig.update_xaxes(title_text='Date')
+        fig.update_yaxes(title_text='Price')
+
+        return fig.to_json()
+
+    if forecast_model == 'LSTM':
+        data = data[['Adj Close']].ffill()
+
+        scaler = MinMaxScaler(feature_range=(0, 1))
+        scaled_data = scaler.fit_transform(data)
+
+        train_size = int(len(scaled_data) * 0.8)
+        train_data = scaled_data[:train_size]
+        test_data = scaled_data[train_size:]
+
+        def create_dataset(data, time_step=1):
+            X, y = [], []
+            for i in range(len(data) - time_step - 1):
+                X.append(data[i:(i + time_step), 0])
+                y.append(data[i + time_step, 0])
+            return np.array(X), np.array(y)
+
+        try:
+            time_step = 60
+            X_train, y_train = create_dataset(train_data, time_step)
+            X_test, y_test = create_dataset(test_data, time_step)
+
+            X_train = X_train.reshape(X_train.shape[0], X_train.shape[1], 1)
+            X_test = X_test.reshape(X_test.shape[0], X_test.shape[1], 1)
+        except IndexError:
+            return "2"
+
+        model = Sequential()
+        model.add(LSTM(units=50, return_sequences=True, input_shape=(time_step, 1)))
+        model.add(LSTM(units=50, return_sequences=False))
+        model.add(Dense(units=25))
+        model.add(Dense(units=1))
+
+        model.compile(optimizer='adam', loss='mean_squared_error')
+        model.fit(X_train, y_train, batch_size=50, epochs=5)
+
+        train_predict = model.predict(X_train)
+        test_predict = model.predict(X_test)
+
+        train_predict = scaler.inverse_transform(train_predict)
+        test_predict = scaler.inverse_transform(test_predict)
+        y_train = scaler.inverse_transform([y_train])
+        y_test = scaler.inverse_transform([y_test])
+
+        future_predictions = []
+        last_sequence = scaled_data[-time_step:]
+        last_sequence = np.array(last_sequence).reshape(1, time_step, 1)
+
+        for i in range(forecast_period):
+            next_prediction = model.predict(last_sequence)
+            future_predictions.append(next_prediction[0, 0])
+            last_sequence = np.roll(last_sequence, -1, axis=1)
+            last_sequence[0, -1, 0] = next_prediction
+
+        future_predictions = scaler.inverse_transform([future_predictions])
+
+        train_scaled_data = scaled_data[:train_size].reshape(-1, 1)
+        test_scaled_data = scaled_data[train_size:].reshape(-1, 1)
+
+        train_dates = data.index[:train_size]
+        test_dates = data.index[train_size:]
+        future_dates = pd.date_range(start=data.index[-1], periods=forecast_period + 1)[1:]
+
+        fig = go.Figure()
+
+        fig.add_trace(go.Scatter(x=train_dates, y=scaler.inverse_transform(train_scaled_data).reshape(-1), mode='lines', name='Train Data'))
+        fig.add_trace(go.Scatter(x=test_dates, y=scaler.inverse_transform(test_scaled_data).reshape(-1), mode='lines', name='Test Data'))
+        fig.add_trace(go.Scatter(x=test_dates[time_step + 1:], y=test_predict.reshape(-1), mode='lines', name='Predicted Price'))
+        fig.add_trace(go.Scatter(x=future_dates, y=future_predictions[0], mode='lines', name=f'Future {forecast_period}-day Prediction'))
+
+        fig.update_layout(title_text=f'{stock[:-3]} price forecast using LSTM for the next {forecast_period} days', showlegend=False)
+        fig.update_xaxes(title_text='Date')
+        fig.update_yaxes(title_text='Price')
+
+        return fig.to_json()
+
+    return "1"

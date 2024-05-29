@@ -83,7 +83,7 @@
             </div>
         
             <div class="flex-grow p-8">
-                <h2 class="text-3xl font-bold mb-4">Risk-Adjusted Performance Analysis</h2>
+                <h2 class="text-3xl font-bold mb-4">News Sentiment Analysis</h2>
 
                 <div class="container">
                     <div v-if="alertMessage" 
@@ -105,15 +105,61 @@
                                 Analyze
                             </button>
                         </div>
-                        <p class="block text-gray-700 text-s font-bold mt-4 mb-2">Risk-Free Rate</p>
-                        <div class="flex items-center">
-                            <input type="number" id="risk_free_rate" v-model="riskFreeRate" placeholder="Enter risk-free rate" step="0.001" class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline">
-                        </div>
                     </form>
-                </div>                            
+                </div>      
                 
-                <div id="stockPerformanceGraphData" class="h-lvh"></div>
-            
+                <div v-if="showSentiment" class="mb-4">
+                    <h3 class="text-2xl font-bold mb-4">Sentiment Analysis</h3>
+
+                    <table class="min-w-full bg-white border border-gray-300">
+                        <thead>
+                            <tr>
+                                <th class="px-4 py-2 border-b">News Count</th>
+                                <th class="px-4 py-2 border-b">Sentiment Type</th>
+                                <th class="px-4 py-2 border-b">Sentiment Strength</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr class="text-center">
+                                <td class="px-4 py-2 border-b">[[ sentimentData.length ]]</td>
+                                <td class="px-4 py-2 border-b" :class="{'text-green-500': sentimentScore > 0, 'text-yellow-500': sentimentScore === 0, 'text-red-500': sentimentScore < 0}">
+                                    [[ sentimentScore < 0 ? 'Negative' : sentimentScore === 0 ? 'Neutral' : 'Positive' ]]
+                                </td>
+                                <td class="px-4 py-2 border-b">[[ (sentimentScore * 100).toFixed(2) ]]%</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <table class="min-w-full bg-white border border-gray-300 mt-4">
+                        <thead>
+                            <tr class="text-center">
+                                <th class="px-4 py-2 border-b">News Source</th>
+                                <th class="px-4 py-2 border-b">News Title</th>
+                                <th class="px-4 py-2 border-b">Release Date</th>
+                                <th class="px-4 py-2 border-b">Sentiment</th>
+                                <th class="px-4 py-2 border-b">Confidence</th>
+                                <th class="px-4 py-2 border-b">Link</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr v-for="(article, index) in sentimentData.sort((a, b) => new Date(b.date) - new Date(a.date))" :key="index" class="text-center">
+                                <td class="px-4 py-2 border-b">[[ article.source ]]</td>
+                                <td class="px-4 py-2 border-b">[[ article.title ]]</td>
+                                <td class="px-4 py-2 border-b">[[ article.date ]]</td>
+                                <td class="px-4 py-2 border-b">
+                                    <select v-model="article.sentiment">
+                                        <option value="positive">Positive</option>
+                                        <option value="neutral">Neutral</option>
+                                        <option value="negative">Negative</option>
+                                    </select>
+                                </td>
+                                <td class="px-4 py-2 border-b">[[ article.confidence.toFixed(2) ]]</td>
+                                <td class="px-4 py-2 border-b"><a :href="article.link" target="_blank">Read more</a></td>
+                            </tr>
+                        </tbody>                                          
+                    </table>
+                </div>
+
             </div>
         </div>
 
@@ -123,6 +169,6 @@
 
     </div>
 
-    <script src="../static/analysis-performance-app.js"></script>
+    <script src="../static/analysis-sentiment-app.js"></script>
 </body>
 </html>

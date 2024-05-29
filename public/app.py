@@ -18,12 +18,15 @@ from analysis import (
     optimization_graph,
     distribution_graph,
     ownership_graph,
-    performance_graph
+    performance_graph,
+    get_stock_sentiment,
+    get_stock_prediction,
+    get_portfolio_analysis
 )
 
 from flask import render_template, send_from_directory, url_for, request, redirect, flash, jsonify
 
-VERSION = 'Alpha 24.05.24'
+VERSION = 'Alpha 29.05.24'
 
 @app.route('/')
 def index():
@@ -171,7 +174,42 @@ def analysis(path='overview'):
     This function renders the analysis page of the website.
     """
     if path == 'overview':
-        return render_template('analysis-overview.html', version=VERSION)
+        portfolio_analysis_overview = get_portfolio_analysis(period=365, riskFreeRate=0.065)
+
+        if portfolio_analysis_overview == "1":
+            return render_template(
+                'analysis-overview.html',
+                portfolio_analysis_overview=None,
+                overall_assessment=None,
+                version=VERSION
+            )
+
+        good = 0
+        bad = 0
+        neutral = 0
+
+        for metric_info in portfolio_analysis_overview.values():
+            condition = metric_info['condition']
+            if condition == 'Good':
+                good += 1
+            elif condition == 'Bad':
+                bad += 1
+            elif condition == 'Neutral':
+                neutral += 1
+
+        if good > bad and good > neutral:
+            overall_assessment = 'Good'
+        elif bad > good and bad > neutral:
+            overall_assessment = 'Bad'
+        else:
+            overall_assessment = 'Neutral'
+
+        return render_template(
+            'analysis-overview.html',
+            portfolio_analysis_overview=portfolio_analysis_overview,
+            overall_assessment = overall_assessment,
+            version=VERSION
+        )
 
     if path == 'ownership':
         if request.method == 'POST':
@@ -379,6 +417,48 @@ def analysis(path='overview'):
             return stock_garch_graph_data
 
         return render_template('analysis-garch.html', version=VERSION)
+
+    if path == 'sentiment':
+        if request.method == "POST":
+            data = request.get_json()
+            request_type = data['type']
+            ticker = data['ticker']
+
+            is_valid, ticker = validate_stock(ticker)
+            if not is_valid:
+                return jsonify({'error': f'{ticker[:-3]} is an invalid ticker'})
+
+            if request_type == 'sentiment':
+                news, score = get_stock_sentiment(ticker)
+                return jsonify({'news': news, 'score': score})
+            else:
+                return jsonify({'error': 'Invalid request type'})
+
+        return render_template('analysis-sentiment.html', version=VERSION)
+
+    if path == 'prediction':
+        if request.method == "POST":
+            data = request.get_json()
+            request_type = data['type']
+            ticker = data['ticker']
+            model = data['model']
+
+            is_valid, ticker = validate_stock(ticker)
+            if not is_valid:
+                return jsonify({'error': f'{ticker[:-3]} is an invalid ticker'})
+
+            if request_type == 'prediction':
+                stock_prediction_graph_data = get_stock_prediction(ticker, model)
+                if stock_prediction_graph_data == "1":
+                    return jsonify({'error': 'Please enter a valid model'})
+                if stock_prediction_graph_data == "2":
+                    return jsonify({'error': f'{ticker[:-3]} does not have enough data to make a prediction using LSTM'})
+            else:
+                return jsonify({'error': 'Invalid request type'})
+
+            return stock_prediction_graph_data
+
+        return render_template('analysis-prediction.html', version=VERSION)
 
     return "Invalid path"
 
