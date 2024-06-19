@@ -23,8 +23,11 @@ This program serves as a Stock Portfolio Management System tailored for the Indo
 - Optimize your portfolio for maximum returns or minimum risk, and display results including optimal asset weights for maximum Sharpe ratio and minimum volatility.
 - Perform fundamental analysis on selected stocks and display fundamental data such as P/E ratios, earnings reports, and more.
 - Decompose stock prices into trend and seasonal components.
-- Apply GARCH (Generalized Autoregressive Conditional Heteroskedasticity) models to analyze stock price volatility and display GARCH model outputs and graphs.
+- Apply GARCH (Generalized Auto Regressive Conditional Heteroskedasticity) models to analyze stock price volatility and display GARCH model outputs and graphs.
 
+### Prediction Tools
+- News sentiment analysis using DistilRoBERTa
+- Price prediction using LSTM (Long Short-Term Memory) or ARIMA (Auto Regressive Integrated Moving Average) model
 
 ## Installation
 
